@@ -24,13 +24,16 @@
   html, body {
     margin: 0;
     padding: 0;
+    height: 100%;
     background: radial-gradient(circle at 50% -10%, #232c52 0%, var(--bg-deep) 55%, #0a0e1e 100%);
     color: var(--ink);
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
     overscroll-behavior: none;
     touch-action: none;
   }
@@ -77,8 +80,10 @@
 
   header {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: flex-end;
+    row-gap: 10px;
     margin-bottom: 20px;
   }
 
@@ -92,10 +97,11 @@
 
   .title-block h1 {
     font-family: Georgia, "Hiragino Mincho ProN", serif;
-    font-size: 34px;
+    font-size: clamp(22px, 6.5vw, 34px);
     margin: 0;
     font-weight: 700;
     letter-spacing: 0.01em;
+    white-space: nowrap;
     background: linear-gradient(120deg, #fff, #b9c2ff 60%, var(--accent));
     -webkit-background-clip: text;
     background-clip: text;
@@ -107,9 +113,9 @@
     background: var(--bg-panel);
     border: 1px solid var(--line);
     border-radius: 10px;
-    padding: 8px 14px;
+    padding: 8px 10px;
     text-align: center;
-    min-width: 70px;
+    min-width: 64px;
   }
 
   .new-badge {
@@ -153,9 +159,11 @@
   }
 
   .score-box .value {
-    font-size: 20px;
+    font-size: 17px;
     font-weight: 700;
+    letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
   .scores {
@@ -665,6 +673,7 @@
     score = 0;
     won = false;
     bestScore = loadBest();
+    boardEl.querySelectorAll('.tile').forEach(el => el.remove());
     tileEls = new Map(); // id -> element
     idCounter = 1;
     overlay.classList.remove('show');
@@ -672,7 +681,8 @@
     updateScore();
     addRandomTile();
     addRandomTile();
-    render(true);
+    renderCellBackgrounds();
+    render();
   }
 
   function updateScore(){
@@ -704,37 +714,61 @@
     return {padding, gap: g, size};
   }
 
-  function render(fresh){
-    // clear cell backgrounds + tiles, rebuild
-    boardEl.querySelectorAll('.cell-bg, .tile').forEach(el => el.remove());
-    const geo = computeGeometry();
-
+  function renderCellBackgrounds(){
+    boardEl.querySelectorAll('.cell-bg').forEach(el => el.remove());
     for(let i=0;i<16;i++){
       const bg = document.createElement('div');
       bg.className = 'cell-bg';
       boardEl.appendChild(bg);
     }
+  }
+
+  function styleTileEl(el, cell, geo){
+    const [bgColor, fgColor] = TILE_COLORS[cell.value] || ['#ffe27a', '#241a05'];
+    el.style.background = bgColor;
+    el.style.color = fgColor;
+    el.style.width = geo.size + 'px';
+    el.style.height = geo.size + 'px';
+    el.style.left = (geo.padding + cell.c*(geo.size+geo.gap)) + 'px';
+    el.style.top = (geo.padding + cell.r*(geo.size+geo.gap)) + 'px';
+    el.style.fontSize = (cell.value > 999 ? geo.size*0.32 : geo.size*0.4) + 'px';
+    el.textContent = cell.value;
+  }
+
+  function render(){
+    const geo = computeGeometry();
+    const liveIds = new Set();
 
     for(let r=0;r<SIZE;r++){
       for(let c=0;c<SIZE;c++){
         const cell = grid[r][c];
         if(!cell) continue;
-        const el = document.createElement('div');
-        el.className = 'tile';
-        if(cell.isNew) el.classList.add('tile-pop');
-        if(cell.merged) el.classList.add('tile-merge');
-        const [bgColor, fgColor] = TILE_COLORS[cell.value] || ['#ffe27a', '#241a05'];
-        el.style.background = bgColor;
-        el.style.color = fgColor;
-        el.style.width = geo.size + 'px';
-        el.style.height = geo.size + 'px';
-        el.style.left = (geo.padding + c*(geo.size+geo.gap)) + 'px';
-        el.style.top = (geo.padding + r*(geo.size+geo.gap)) + 'px';
-        el.style.fontSize = (cell.value > 999 ? geo.size*0.32 : geo.size*0.4) + 'px';
-        el.textContent = cell.value;
-        boardEl.appendChild(el);
+        liveIds.add(cell.id);
+
+        let el = tileEls.get(cell.id);
+        if(el){
+          // existing tile — just update position/value so CSS transition animates the move
+          styleTileEl(el, cell, geo);
+        } else {
+          // new or merged-into tile — create fresh element
+          el = document.createElement('div');
+          el.className = 'tile';
+          if(cell.isNew) el.classList.add('tile-pop');
+          if(cell.merged) el.classList.add('tile-merge');
+          styleTileEl(el, cell, geo);
+          boardEl.appendChild(el);
+          tileEls.set(cell.id, el);
+        }
         cell.isNew = false;
         cell.merged = false;
+      }
+    }
+
+    // remove DOM elements for tiles that no longer exist (merged away)
+    for(const [id, el] of tileEls){
+      if(!liveIds.has(id)){
+        el.remove();
+        tileEls.delete(id);
       }
     }
   }
