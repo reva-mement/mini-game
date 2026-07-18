@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>2048 — 夜明けまで</title>
+<style>
+  @font-face {
+    font-family: 'system-display';
+    src: local('Georgia');
+  }
+
+  :root {
+    --bg-deep: #10162b;
+    --bg-panel: #1a2140;
+    --ink: #eef0fb;
+    --ink-dim: #9099c2;
+    --line: #2c3560;
+    --accent: #ffd15c;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: radial-gradient(circle at 50% -10%, #232c52 0%, var(--bg-deep) 55%, #0a0e1e 100%);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overscroll-behavior: none;
+    touch-action: none;
+  }
+
+  .cat-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image: var(--cat-bg, none);
+    background-repeat: repeat;
+    background-size: 90px 90px;
+    opacity: var(--cat-opacity, 0);
+    transition: opacity 200ms ease;
+  }
+
+  .stage {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    padding: 28px 18px 40px;
+  }
+
+  .bg-toggle {
+    display: block;
+    width: 100%;
+    margin-bottom: 16px;
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+    border-radius: 10px;
+    padding: 9px;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: border-color 120ms ease, color 120ms ease;
+  }
+
+  .bg-toggle:hover {
+    border-color: var(--accent);
+    color: var(--ink);
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 20px;
+  }
+
+  .title-block .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    margin: 0 0 4px;
+  }
+
+  .title-block h1 {
+    font-family: Georgia, "Hiragino Mincho ProN", serif;
+    font-size: 34px;
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    background: linear-gradient(120deg, #fff, #b9c2ff 60%, var(--accent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .score-box {
+    position: relative;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 14px;
+    text-align: center;
+    min-width: 70px;
+  }
+
+  .new-badge {
+    position: absolute;
+    top: -9px;
+    left: -8px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    padding: 1px 5px;
+    border-radius: 6px;
+    background: #1a2140;
+    background-image: linear-gradient(90deg, #ff5c5c, #ffb15c, #ffe15c, #7be08a, #5cc8ff, #b39dff, #ff5c5c);
+    background-size: 250% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    opacity: 0;
+    transform: scale(0.7) rotate(-8deg);
+    transition: opacity 160ms ease, transform 160ms ease;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .new-badge.show {
+    opacity: 1;
+    transform: scale(1) rotate(-8deg);
+    animation: badge-shimmer 1.4s linear infinite;
+  }
+
+  @keyframes badge-shimmer {
+    from { background-position: 0% center; }
+    to { background-position: 250% center; }
+  }
+
+  .score-box .label {
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+  }
+
+  .score-box .value {
+    font-size: 20px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .scores {
+    display: flex;
+    gap: 8px;
+  }
+
+  .board-wrap {
+    position: relative;
+  }
+
+  .board {
+    position: relative;
+    background: var(--bg-panel);
+    border-radius: 16px;
+    padding: 10px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 10px;
+    aspect-ratio: 1;
+    box-shadow: 0 20px 60px -20px rgba(0,0,0,0.6), inset 0 0 0 1px var(--line);
+    touch-action: none;
+  }
+
+  .cell-bg {
+    background: rgba(255,255,255,0.03);
+    border-radius: 10px;
+  }
+
+  .tile {
+    position: absolute;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    transition: transform 120ms ease, left 120ms ease, top 120ms ease;
+    user-select: none;
+  }
+
+  .tile-pop {
+    animation: pop 160ms ease;
+  }
+
+  .tile-merge {
+    animation: merge 160ms ease;
+  }
+
+  @keyframes pop {
+    from { transform: scale(0.4); opacity: 0.3; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  @keyframes merge {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.18); }
+    100% { transform: scale(1); }
+  }
+
+  .controls-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 18px;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--ink-dim);
+    line-height: 1.5;
+  }
+
+  .new-game {
+    background: var(--accent);
+    color: #241a05;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+  }
+
+  .new-game:active {
+    transform: translateY(1px);
+  }
+
+  .overlay {
+    position: absolute;
+    z-index: 10;
+    inset: 0;
+    background: rgba(16, 22, 43, 0.88);
+    border-radius: 16px;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    backdrop-filter: blur(2px);
+  }
+
+  .overlay.show { display: flex; }
+
+  .overlay .msg {
+    font-family: Georgia, serif;
+    font-size: 26px;
+    font-weight: 700;
+  }
+
+  .overlay button {
+    background: var(--accent);
+    color: #241a05;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .rank-link {
+    display: block;
+    width: 100%;
+    margin-top: 14px;
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: border-color 120ms ease, color 120ms ease;
+  }
+
+  .rank-link:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .rank-view {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at 50% -10%, #232c52 0%, var(--bg-deep) 55%, #0a0e1e 100%);
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    z-index: 20;
+    padding: 48px 18px;
+    overflow-y: auto;
+  }
+
+  .rank-view::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: var(--cat-bg, none);
+    background-repeat: repeat;
+    background-size: 90px 90px;
+    opacity: var(--cat-opacity, 0);
+    pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+
+  .rank-view.show { display: flex; }
+
+  .rank-panel {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 26px 22px;
+    box-shadow: 0 20px 60px -20px rgba(0,0,0,0.6);
+  }
+
+  .rank-header h2 {
+    font-family: Georgia, "Hiragino Mincho ProN", serif;
+    font-size: 26px;
+    margin: 4px 0 22px;
+    background: linear-gradient(120deg, #fff, #b9c2ff 60%, var(--accent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .rank-list {
+    list-style: none;
+    margin: 0 0 22px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .rank-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.03);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rank-list li.top1 { background: linear-gradient(90deg, rgba(255,209,92,0.16), transparent); }
+
+  .rank-list .rank-num {
+    color: var(--ink-dim);
+    font-size: 13px;
+    width: 28px;
+  }
+
+  .rank-list .rank-score {
+    font-weight: 700;
+    font-size: 16px;
+    flex: 1;
+    text-align: left;
+    padding-left: 10px;
+  }
+
+  .rank-list .rank-date {
+    color: var(--ink-dim);
+    font-size: 10px;
+    white-space: nowrap;
+    margin-right: 8px;
+  }
+
+  .rank-share {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+    border-radius: 6px;
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: border-color 120ms ease, color 120ms ease;
+  }
+
+  .rank-share:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .rank-empty {
+    color: var(--ink-dim);
+    font-size: 13px;
+    text-align: center;
+    padding: 24px 0;
+  }
+
+  .back-btn {
+    display: block;
+    width: 100%;
+    background: var(--accent);
+    color: #241a05;
+    border: none;
+    border-radius: 8px;
+    padding: 11px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    margin-bottom: 18px;
+  }
+
+  .link-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .footer-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--ink-dim);
+    text-decoration: none;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    transition: border-color 120ms ease, color 120ms ease;
+  }
+
+  .footer-link:hover {
+    border-color: var(--accent);
+    color: var(--ink);
+  }
+
+  .footer-link .icon {
+    font-size: 14px;
+    font-weight: 700;
+    width: 18px;
+    text-align: center;
+  }
+
+  .reset-btn {
+    display: block;
+    width: 100%;
+    margin-top: 14px;
+    background: none;
+    border: 1px dashed var(--line);
+    color: var(--ink-dim);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: border-color 120ms ease, color 120ms ease;
+  }
+
+  .reset-btn:hover {
+    border-color: #e05263;
+    color: #e05263;
+  }
+</style>
+</head>
+<body>
+
+<div class="cat-layer" id="catLayer"></div>
+
+<div class="stage">
+  <header>
+    <div class="title-block">
+      <p class="eyebrow">2048</p>
+      <h1>夜明けまで</h1>
+    </div>
+    <div class="scores">
+      <div class="score-box">
+        <span class="new-badge" id="newBadge">NEW!!</span>
+        <div class="label">SCORE</div>
+        <div class="value" id="score">0</div>
+      </div>
+      <div class="score-box">
+        <div class="label">BEST</div>
+        <div class="value" id="best">0</div>
+      </div>
+    </div>
+  </header>
+
+  <button class="bg-toggle" id="bgToggle">🐾 背景: <span id="bgToggleLabel">なし</span></button>
+
+  <div class="board-wrap">
+    <div class="board" id="board">
+      <div class="overlay" id="overlay">
+        <div class="msg" id="overlayMsg">Game Over</div>
+        <button id="overlayBtn">もう一度</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls-row">
+    <p class="hint">矢印キー / スワイプで<br>タイルを動かしてね</p>
+    <button class="new-game" id="newGameBtn">新しく始める</button>
+  </div>
+
+  <button class="rank-link" id="rankBtn">歴代ベスト10を見る →</button>
+</div>
+
+<div class="rank-view" id="rankView">
+  <div class="rank-panel">
+    <header class="rank-header">
+      <p class="eyebrow">RECORDS</p>
+      <h2>歴代ベスト10</h2>
+    </header>
+    <ol class="rank-list" id="rankList"></ol>
+    <button class="back-btn" id="backBtn">← ゲームに戻る</button>
+    <div class="link-group">
+      <a class="footer-link" href="https://x.com/LevaCraft" target="_blank" rel="noopener noreferrer">
+        <span class="icon">𝕏</span> @LevaCraft
+      </a>
+      <a class="footer-link" href="https://youtube.com/@levacraft-b9v?si=z2kzSiArr_hE2uIf" target="_blank" rel="noopener noreferrer">
+        <span class="icon">▶</span> YouTube
+      </a>
+    </div>
+    <button class="reset-btn" id="resetBtn">記録をリセット</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const SIZE = 4;
+  const boardEl = document.getElementById('board');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const newBadge = document.getElementById('newBadge');
+  const overlay = document.getElementById('overlay');
+  const overlayMsg = document.getElementById('overlayMsg');
+  const overlayBtn = document.getElementById('overlayBtn');
+  const newGameBtn = document.getElementById('newGameBtn');
+  const rankBtn = document.getElementById('rankBtn');
+  const backBtn = document.getElementById('backBtn');
+  const rankView = document.getElementById('rankView');
+  const rankList = document.getElementById('rankList');
+  const resetBtn = document.getElementById('resetBtn');
+  const bgToggle = document.getElementById('bgToggle');
+  const bgToggleLabel = document.getElementById('bgToggleLabel');
+
+  // dusk-to-dawn color scale keyed by tile value
+  const TILE_COLORS = {
+    2:    ['#2a3466', '#e8ebff'],
+    4:    ['#333e78', '#e8ebff'],
+    8:    ['#4a4a9c', '#ffffff'],
+    16:   ['#6248a8', '#ffffff'],
+    32:   ['#8548a0', '#ffffff'],
+    64:   ['#a84f8f', '#ffffff'],
+    128:  ['#c85a7e', '#fff7e8'],
+    256:  ['#d97a5c', '#fff7e8'],
+    512:  ['#e39a4e', '#241a05'],
+    1024: ['#f0b94f', '#241a05'],
+    2048: ['#ffd15c', '#241a05'],
+    4096: ['#fff0a0', '#241a05']
+  };
+
+  let grid, score, cellSize, gap, tileEls, won;
+  let idCounter = 1;
+  let bestScore = 0;
+
+  const STORAGE_KEY = 'game2048_best';
+  const HISTORY_KEY = 'game2048_history';
+
+  function loadHistory(){
+    try {
+      const raw = localStorage.getItem(HISTORY_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveHistoryEntry(finalScore){
+    try {
+      const list = loadHistory();
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const stamp = `${now.getFullYear()}/${pad(now.getMonth()+1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      list.push({ score: finalScore, date: stamp });
+      list.sort((a,b) => b.score - a.score);
+      const top10 = list.slice(0, 10);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(top10));
+    } catch (e) {
+      // storage unavailable — ranking just won't persist this session
+    }
+  }
+
+  function renderRanking(){
+    const list = loadHistory();
+    rankList.innerHTML = '';
+    if(list.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'rank-empty';
+      empty.textContent = 'まだ記録がありません。ゲームオーバーになると記録されます。';
+      rankList.appendChild(empty);
+      return;
+    }
+    list.forEach((entry, i) => {
+      const li = document.createElement('li');
+      if(i === 0) li.classList.add('top1');
+      li.innerHTML = `
+        <span class="rank-num">${i+1}</span>
+        <span class="rank-score">${entry.score}</span>
+        <span class="rank-date">${entry.date}</span>
+        <button class="rank-share" title="Xでシェア" data-score="${entry.score}" data-rank="${i+1}">𝕏</button>
+      `;
+      rankList.appendChild(li);
+    });
+  }
+
+  function shareToX(score, rank){
+    const text = `2048「夜明けまで」で ${score}点を記録しました🌙✨(歴代${rank}位)\n#LevaCraft`;
+    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  function loadBest(){
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? parseInt(saved, 10) || 0 : 0;
+    } catch (e) {
+      // storage unavailable (e.g. sandboxed preview) — fall back to in-memory only
+      return bestScore;
+    }
+  }
+
+  function saveBest(value){
+    try {
+      localStorage.setItem(STORAGE_KEY, String(value));
+    } catch (e) {
+      // ignore — best score will just live for this session
+    }
+  }
+
+  function init(){
+    grid = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+    score = 0;
+    won = false;
+    bestScore = loadBest();
+    tileEls = new Map(); // id -> element
+    idCounter = 1;
+    overlay.classList.remove('show');
+    newBadge.classList.remove('show');
+    updateScore();
+    addRandomTile();
+    addRandomTile();
+    render(true);
+  }
+
+  function updateScore(){
+    scoreEl.textContent = score;
+    if(score > bestScore){
+      bestScore = score;
+      saveBest(bestScore);
+      newBadge.classList.add('show');
+    }
+    bestEl.textContent = bestScore;
+  }
+
+  function addRandomTile(){
+    const empties = [];
+    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(!grid[r][c]) empties.push([r,c]);
+    if(empties.length === 0) return null;
+    const [r,c] = empties[Math.floor(Math.random()*empties.length)];
+    const value = Math.random() < 0.9 ? 2 : 4;
+    const id = idCounter++;
+    grid[r][c] = {value, id, r, c, isNew:true};
+    return grid[r][c];
+  }
+
+  function computeGeometry(){
+    const rect = boardEl.getBoundingClientRect();
+    const padding = 10;
+    const g = 10;
+    const size = (rect.width - padding*2 - g*3) / 4;
+    return {padding, gap: g, size};
+  }
+
+  function render(fresh){
+    // clear cell backgrounds + tiles, rebuild
+    boardEl.querySelectorAll('.cell-bg, .tile').forEach(el => el.remove());
+    const geo = computeGeometry();
+
+    for(let i=0;i<16;i++){
+      const bg = document.createElement('div');
+      bg.className = 'cell-bg';
+      boardEl.appendChild(bg);
+    }
+
+    for(let r=0;r<SIZE;r++){
+      for(let c=0;c<SIZE;c++){
+        const cell = grid[r][c];
+        if(!cell) continue;
+        const el = document.createElement('div');
+        el.className = 'tile';
+        if(cell.isNew) el.classList.add('tile-pop');
+        if(cell.merged) el.classList.add('tile-merge');
+        const [bgColor, fgColor] = TILE_COLORS[cell.value] || ['#ffe27a', '#241a05'];
+        el.style.background = bgColor;
+        el.style.color = fgColor;
+        el.style.width = geo.size + 'px';
+        el.style.height = geo.size + 'px';
+        el.style.left = (geo.padding + c*(geo.size+geo.gap)) + 'px';
+        el.style.top = (geo.padding + r*(geo.size+geo.gap)) + 'px';
+        el.style.fontSize = (cell.value > 999 ? geo.size*0.32 : geo.size*0.4) + 'px';
+        el.textContent = cell.value;
+        boardEl.appendChild(el);
+        cell.isNew = false;
+        cell.merged = false;
+      }
+    }
+  }
+
+  function cloneGrid(){
+    return grid.map(row => row.map(cell => cell ? {...cell} : 0));
+  }
+
+  function gridsEqual(a,b){
+    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
+      const av = a[r][c] ? a[r][c].value : 0;
+      const bv = b[r][c] ? b[r][c].value : 0;
+      if(av !== bv) return false;
+    }
+    return true;
+  }
+
+  // move in direction: 'up','down','left','right'
+  function move(dir){
+    const before = cloneGrid();
+    let moved = false;
+
+    const order = [];
+    for(let i=0;i<SIZE;i++) order.push(i);
+
+    function getLine(index, direction){
+      const line = [];
+      for(let i=0;i<SIZE;i++){
+        if(direction==='left') line.push(grid[index][i]);
+        else if(direction==='right') line.push(grid[index][SIZE-1-i]);
+        else if(direction==='up') line.push(grid[i][index]);
+        else if(direction==='down') line.push(grid[SIZE-1-i][index]);
+      }
+      return line;
+    }
+
+    function setLine(index, direction, line){
+      for(let i=0;i<SIZE;i++){
+        let r,c;
+        if(direction==='left'){ r=index; c=i; }
+        else if(direction==='right'){ r=index; c=SIZE-1-i; }
+        else if(direction==='up'){ r=i; c=index; }
+        else if(direction==='down'){ r=SIZE-1-i; c=index; }
+        grid[r][c] = line[i] || 0;
+        if(grid[r][c]) { grid[r][c].r = r; grid[r][c].c = c; }
+      }
+    }
+
+    for(const idx of order){
+      const line = getLine(idx, dir).filter(x => x);
+      const merged = [];
+      for(let i=0;i<line.length;i++){
+        if(i < line.length-1 && line[i].value === line[i+1].value){
+          const newVal = line[i].value * 2;
+          score += newVal;
+          if(newVal === 2048 && !won){ won = true; }
+          merged.push({value:newVal, id: idCounter++, merged:true});
+          i++;
+        } else {
+          merged.push(line[i]);
+        }
+      }
+      while(merged.length < SIZE) merged.push(0);
+      setLine(idx, dir, merged);
+    }
+
+    moved = !gridsEqual(before, grid);
+    if(moved){
+      updateScore();
+      addRandomTile();
+      render();
+      checkEnd();
+      if(won) showOverlay('達成! 2048', true);
+    }
+  }
+
+  function canMove(){
+    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
+      if(!grid[r][c]) return true;
+      const v = grid[r][c].value;
+      if(c<SIZE-1 && grid[r][c+1] && grid[r][c+1].value === v) return true;
+      if(r<SIZE-1 && grid[r+1][c] && grid[r+1][c].value === v) return true;
+    }
+    return false;
+  }
+
+  function checkEnd(){
+    if(!canMove()){
+      saveHistoryEntry(score);
+      showOverlay('ゲームオーバー', false);
+    }
+  }
+
+  function showOverlay(msg, isWin){
+    overlayMsg.textContent = msg;
+    overlay.classList.add('show');
+  }
+
+  document.addEventListener('keydown', (e) => {
+    const map = {ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right'};
+    if(map[e.key]){
+      e.preventDefault();
+      if(!overlay.classList.contains('show')) move(map[e.key]);
+    }
+  });
+
+  // touch swipe — works anywhere on screen, not just on the board
+  let touchStartX=0, touchStartY=0;
+  document.body.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0];
+    touchStartX = t.clientX; touchStartY = t.clientY;
+  }, {passive:true});
+
+  document.body.addEventListener('touchmove', (e) => {
+    if(rankView.classList.contains('show')) return; // allow scrolling the ranking list
+    e.preventDefault();
+  }, {passive:false});
+
+  document.body.addEventListener('touchend', (e) => {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    if(Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
+    if(overlay.classList.contains('show')) return;
+    if(rankView.classList.contains('show')) return;
+    if(Math.abs(dx) > Math.abs(dy)){
+      move(dx > 0 ? 'right' : 'left');
+    } else {
+      move(dy > 0 ? 'down' : 'up');
+    }
+  }, {passive:true});
+
+  overlayBtn.addEventListener('click', init);
+  newGameBtn.addEventListener('click', init);
+  window.addEventListener('resize', () => render());
+
+  rankBtn.addEventListener('click', () => {
+    renderRanking();
+    rankView.classList.add('show');
+  });
+
+  rankList.addEventListener('click', (e) => {
+    const btn = e.target.closest('.rank-share');
+    if(!btn) return;
+    shareToX(btn.dataset.score, btn.dataset.rank);
+  });
+
+  backBtn.addEventListener('click', () => {
+    rankView.classList.remove('show');
+  });
+
+  resetBtn.addEventListener('click', () => {
+    const ok = confirm('歴代ベスト10とベストスコアを消去します。よろしいですか？');
+    if(!ok) return;
+    try {
+      localStorage.removeItem(HISTORY_KEY);
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {
+      // storage unavailable — nothing to clear
+    }
+    bestScore = 0;
+    bestEl.textContent = 0;
+    newBadge.classList.remove('show');
+    renderRanking();
+  });
+
+  // ---- switchable cat background ----
+  const CAT_THEME_KEY = 'game2048_catTheme';
+
+  function catSVG(color){
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'>
+      <g fill='${color}'>
+        <polygon points='14,16 20,4 26,16'/>
+        <polygon points='34,16 40,4 46,16'/>
+        <circle cx='30' cy='28' r='14'/>
+      </g>
+      <g stroke='${color}' stroke-width='1.4' fill='none' opacity='0.9'>
+        <line x1='10' y1='30' x2='0' y2='27'/>
+        <line x1='10' y1='34' x2='0' y2='35'/>
+        <line x1='50' y1='30' x2='60' y2='27'/>
+        <line x1='50' y1='34' x2='60' y2='35'/>
+      </g>
+    </svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  }
+
+  const CAT_THEMES = [
+    { label: 'なし', bg: 'none', opacity: 0 },
+    { label: '🐈 三毛猫', bg: catSVG('#ffb15c'), opacity: 0.16 },
+    { label: '🐈\u200d⬛ 黒猫', bg: catSVG('#b39dff'), opacity: 0.14 },
+    { label: '😺 白猫', bg: catSVG('#ffdcec'), opacity: 0.12 }
+  ];
+
+  function loadCatTheme(){
+    try {
+      const saved = parseInt(localStorage.getItem(CAT_THEME_KEY), 10);
+      return Number.isInteger(saved) && CAT_THEMES[saved] ? saved : 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  function saveCatTheme(idx){
+    try { localStorage.setItem(CAT_THEME_KEY, String(idx)); } catch (e) {}
+  }
+
+  function applyCatTheme(idx){
+    const theme = CAT_THEMES[idx];
+    document.documentElement.style.setProperty('--cat-bg', theme.bg);
+    document.documentElement.style.setProperty('--cat-opacity', theme.opacity);
+    bgToggleLabel.textContent = theme.label;
+  }
+
+  let catThemeIndex = loadCatTheme();
+  applyCatTheme(catThemeIndex);
+
+  bgToggle.addEventListener('click', () => {
+    catThemeIndex = (catThemeIndex + 1) % CAT_THEMES.length;
+    applyCatTheme(catThemeIndex);
+    saveCatTheme(catThemeIndex);
+  });
+
+  init();
+})();
+</script>
+
+</body>
+</html>
