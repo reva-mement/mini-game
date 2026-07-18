@@ -312,10 +312,12 @@
     inset: 0;
     background: radial-gradient(circle at 50% -10%, #232c52 0%, var(--bg-deep) 55%, #0a0e1e 100%);
     display: none;
-    align-items: flex-start;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
     z-index: 20;
-    padding: 48px 18px;
+    padding: 40px 18px 20px;
+    gap: 12px;
     overflow: hidden;
   }
 
@@ -337,7 +339,8 @@
     position: relative;
     width: 100%;
     max-width: 420px;
-    max-height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     background: var(--bg-panel);
     border: 1px solid var(--line);
@@ -442,6 +445,10 @@
   }
 
   .link-group {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    flex-shrink: 0;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -545,15 +552,15 @@
     </header>
     <ol class="rank-list" id="rankList"></ol>
     <button class="back-btn" id="backBtn">← ゲームに戻る</button>
-    <div class="link-group">
-      <a class="footer-link" href="https://x.com/LevaCraft" target="_blank" rel="noopener noreferrer">
-        <span class="icon">𝕏</span> @LevaCraft
-      </a>
-      <a class="footer-link" href="https://youtube.com/@levacraft-b9v?si=z2kzSiArr_hE2uIf" target="_blank" rel="noopener noreferrer">
-        <span class="icon">▶</span> YouTube
-      </a>
-    </div>
     <button class="reset-btn" id="resetBtn">記録をリセット</button>
+  </div>
+  <div class="link-group">
+    <a class="footer-link" href="https://x.com/LevaCraft" target="_blank" rel="noopener noreferrer">
+      <span class="icon">𝕏</span> @LevaCraft
+    </a>
+    <a class="footer-link" href="https://youtube.com/@levacraft-b9v?si=z2kzSiArr_hE2uIf" target="_blank" rel="noopener noreferrer">
+      <span class="icon">▶</span> YouTube
+    </a>
   </div>
 </div>
 
