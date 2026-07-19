@@ -255,6 +255,37 @@
     transform: translateY(1px);
   }
 
+  .vanish-toast {
+    position: absolute;
+    z-index: 12;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    text-align: center;
+    padding: 0 20px;
+    font-family: Georgia, serif;
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: 0.02em;
+    text-shadow: 0 4px 24px rgba(0,0,0,0.6);
+    background-image: linear-gradient(90deg, #ff5c5c, #ffb15c, #ffe15c, #7be08a, #5cc8ff, #b39dff, #ff5c5c);
+    background-size: 250% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    opacity: 0;
+    transform: scale(0.7);
+    transition: opacity 200ms ease, transform 200ms ease;
+  }
+
+  .vanish-toast.show {
+    opacity: 1;
+    transform: scale(1);
+    animation: badge-shimmer 1.1s linear infinite;
+  }
+
   .overlay {
     position: absolute;
     z-index: 10;
@@ -529,6 +560,7 @@
 
   <div class="board-wrap">
     <div class="board" id="board">
+      <div class="vanish-toast" id="vanishToast">✨ 2048 消滅! ✨</div>
       <div class="overlay" id="overlay">
         <div class="msg" id="overlayMsg">Game Over</div>
         <button id="overlayBtn">もう一度</button>
@@ -573,6 +605,7 @@
   const newBadge = document.getElementById('newBadge');
   const overlay = document.getElementById('overlay');
   const overlayMsg = document.getElementById('overlayMsg');
+  const vanishToast = document.getElementById('vanishToast');
   const overlayBtn = document.getElementById('overlayBtn');
   const newGameBtn = document.getElementById('newGameBtn');
   const rankBtn = document.getElementById('rankBtn');
@@ -599,7 +632,7 @@
     4096: ['#fff0a0', '#241a05']
   };
 
-  let grid, score, cellSize, gap, tileEls, won;
+  let grid, score, cellSize, gap, tileEls;
   let idCounter = 1;
   let bestScore = 0;
 
@@ -680,7 +713,6 @@
   function init(){
     grid = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
     score = 0;
-    won = false;
     bestScore = loadBest();
     boardEl.querySelectorAll('.tile').forEach(el => el.remove());
     tileEls = new Map(); // id -> element
@@ -826,6 +858,8 @@
       }
     }
 
+    let vanishedThisMove = false;
+
     for(const idx of order){
       const line = getLine(idx, dir).filter(x => x);
       const merged = [];
@@ -833,7 +867,12 @@
         if(i < line.length-1 && line[i].value === line[i+1].value){
           const newVal = line[i].value * 2;
           score += newVal;
-          if(newVal === 2048 && !won){ won = true; }
+          if(newVal === 2048){
+            // 2048 tiles vanish in a burst of sparkle instead of ending the game
+            vanishedThisMove = true;
+            i++;
+            continue;
+          }
           merged.push({value:newVal, id: idCounter++, merged:true});
           i++;
         } else {
@@ -849,8 +888,8 @@
       updateScore();
       addRandomTile();
       render();
+      if(vanishedThisMove) showVanishToast();
       checkEnd();
-      if(won) showOverlay('達成! 2048', true);
     }
   }
 
@@ -867,13 +906,25 @@
   function checkEnd(){
     if(!canMove()){
       saveHistoryEntry(score);
-      showOverlay('ゲームオーバー', false);
+      showOverlay('ゲームオーバー');
     }
   }
 
-  function showOverlay(msg, isWin){
+  function showOverlay(msg){
     overlayMsg.textContent = msg;
     overlay.classList.add('show');
+  }
+
+  let vanishToastTimer = null;
+  function showVanishToast(){
+    vanishToast.classList.remove('show');
+    // force reflow so re-triggering the animation works even on back-to-back vanishes
+    void vanishToast.offsetWidth;
+    vanishToast.classList.add('show');
+    clearTimeout(vanishToastTimer);
+    vanishToastTimer = setTimeout(() => {
+      vanishToast.classList.remove('show');
+    }, 1300);
   }
 
   document.addEventListener('keydown', (e) => {
