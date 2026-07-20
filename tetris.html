@@ -566,7 +566,7 @@
   </div>
 
   <div class="controls-row">
-    <p class="hint">PC: 矢印キーで移動・Q/Wで回転<br>スマホ: タップで回転・フリックしたまま指を止めると移動/落下し続けます</p>
+    <p class="hint">PC: 矢印キーで移動・Q/Wで回転<br>スマホ: タップで回転・左右は保持で移動し続けます・下フリックで即落下</p>
     <button class="new-game" id="newGameBtn">新しく始める</button>
   </div>
 
@@ -901,11 +901,14 @@
     if (gameOver || paused) return;
     if (direction === 'left') moveLeft();
     else if (direction === 'right') moveRight();
-    else if (direction === 'down') playerDrop();
   }
 
   function startHolding(direction){
     heldDirection = direction;
+    if (direction === 'down') {
+      hardDrop(); // instant drop — nothing left to repeat once the piece has locked
+      return;
+    }
     runDirectionAction(direction); // fire immediately on the initial flick
     clearInterval(repeatTimer);
     repeatTimer = setInterval(() => runDirectionAction(direction), REPEAT_INTERVAL);
