@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>テトリス — 降り積む夜</title>
+<style>
+  :root {
+    --bg-deep: #10162b;
+    --bg-panel: #1a2140;
+    --ink: #eef0fb;
+    --ink-dim: #9099c2;
+    --line: #2c3560;
+    --accent: #ffd15c;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: radial-gradient(circle at 50% -10%, #232c52 0%, var(--bg-deep) 55%, #0a0e1e 100%);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .cat-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image: var(--cat-bg, none);
+    background-repeat: repeat;
+    background-size: 90px 90px;
+    opacity: var(--cat-opacity, 0);
+    transition: opacity 200ms ease;
+  }
+
+  .stage {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 28px 18px 40px;
+  }
+
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+    row-gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .title-block .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    margin: 0 0 4px;
+  }
+
+  .title-block h1 {
+    font-family: Georgia, "Hiragino Mincho ProN", serif;
+    font-size: clamp(22px, 6.5vw, 34px);
+    margin: 0;
+    font-weight: 700;
+    white-space: nowrap;
+    background: linear-gradient(120deg, #fff, #b9c2ff 60%, var(--accent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .scores {
+    display: flex;
+    gap: 8px;
+  }
+
+  .score-box {
+    position: relative;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 10px;
+    text-align: center;
+    min-width: 64px;
+  }
+
+  .score-box .label {
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+  }
+
+  .score-box .value {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .new-badge {
+    position: absolute;
+    top: -9px;
+    left: -8px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    padding: 1px 5px;
+    border-radius: 6px;
+    background: #1a2140;
+    background-image: linear-gradient(90deg, #ff5c5c, #ffb15c, #ffe15c, #7be08a, #5cc8ff, #b39dff, #ff5c5c);
+    background-size: 250% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    opacity: 0;
+    transform: scale(0.7) rotate(-8deg);
+    transition: opacity 160ms ease, transform 160ms ease;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .new-badge.show {
+    opacity: 1;
+    transform: scale(1) rotate(-8deg);
+    animation: badge-shimmer 1.4s linear infinite;
+  }
+
+  @keyframes badge-shimmer {
+    from { background-position: 0% center; }
+    to { background-position: 250% center; }
+  }
+
+  .bg-toggle {
+    display: block;
+    width: 100%;
+    margin-bottom: 16px;
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+    border-radius: 10px;
+    padding: 9px;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: border-color 120ms ease, color 120ms ease;
+  }
+
+  .bg-toggle:hover {
+    border-color: var(--accent);
+    color: var(--ink);
+  }
+
+  .board-wrap {
+    position: relative;
+    background: var(--bg-panel);
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: 0 20px 60px -20px rgba(0,0,0,0.6), inset 0 0 0 1px var(--line);
+    display: flex;
+    justify-content: center;
+  }
+
+  #tetris {
+    display: block;
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+    border-radius: 8px;
+    background: #0a0e1e;
+  }
+
+  .overlay {
+    position: absolute;
+    z-index: 10;
+    inset: 14px;
+    background: rgba(16, 22, 43, 0.9);
+    border-radius: 12px;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    backdrop-filter: blur(2px);
+    text-align: center;
+    padding: 20px;
+  }
+
+  .overlay.show { display: flex; }
+
+  .overlay .msg {
+    font-family: Georgia, serif;
+    font-size: 24px;
+    font-weight: 700;
+  }
+
+  .overlay .sub {
+    font-size: 12px;
+    color: var(--ink-dim);
+  }
+
+  .overlay button {
+    background: var(--accent);
+    color: #241a05;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .touch-controls {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .touch-btn {
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    border-radius: 10px;
+    padding: 14px 0;
+    font-size: 18px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 100ms ease, transform 100ms ease;
+  }
+
+  .touch-btn:active {
+    background: #232c52;
+    transform: translateY(1px);
+  }
+
+  .controls-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 18px;
+    gap: 10px;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--ink-dim);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .new-game {
+    background: var(--accent);
+    color: #241a05;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .new-game:active { transform: translateY(1px); }
+
+  .rank-link {
+    display: block;
+    width: 100%;
+    margin-top: 14px;
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: border-color 120ms ease, color 120ms ease;
+  }
+
+  .rank-link:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .rank-view {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at 50% -10%, #232c52 0%, var(--bg-deep) 55%, #0a0e1e 100%);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    z-index: 20;
+    padding: 24px 16px 14px;
+    gap: 8px;
+    overflow: hidden;
+  }
+
+  .rank-view::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: var(--cat-bg, none);
+    background-repeat: repeat;
+    background-size: 90px 90px;
+    opacity: var(--cat-opacity, 0);
+    pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+
+  .rank-view.show { display: flex; }
+
+  .rank-panel {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 12px 16px;
+    box-shadow: 0 20px 60px -20px rgba(0,0,0,0.6);
+  }
+
+  .rank-header h2 {
+    font-family: Georgia, "Hiragino Mincho ProN", serif;
+    font-size: 18px;
+    margin: 2px 0 6px;
+    background: linear-gradient(120deg, #fff, #b9c2ff 60%, var(--accent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .rank-header .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    margin: 0;
+  }
+
+  .rank-list {
+    list-style: none;
+    margin: 0 0 8px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .rank-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 9px;
+    border-radius: 7px;
+    background: rgba(255,255,255,0.03);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rank-list li.top1 { background: linear-gradient(90deg, rgba(255,209,92,0.16), transparent); }
+
+  .rank-list .rank-num {
+    color: var(--ink-dim);
+    font-size: 12px;
+    width: 22px;
+  }
+
+  .rank-list .rank-score {
+    font-weight: 700;
+    font-size: 14px;
+    flex: 1;
+    text-align: left;
+    padding-left: 8px;
+  }
+
+  .rank-list .rank-date {
+    color: var(--ink-dim);
+    font-size: 9px;
+    white-space: nowrap;
+    margin-right: 6px;
+  }
+
+  .rank-share {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+    border-radius: 6px;
+    width: 22px;
+    height: 22px;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: border-color 120ms ease, color 120ms ease;
+  }
+
+  .rank-share:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .rank-empty {
+    color: var(--ink-dim);
+    font-size: 13px;
+    text-align: center;
+    padding: 24px 0;
+  }
+
+  .back-btn {
+    display: block;
+    width: 100%;
+    background: var(--accent);
+    color: #241a05;
+    border: none;
+    border-radius: 8px;
+    padding: 7px;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    margin-bottom: 8px;
+  }
+
+  .reset-btn {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    background: none;
+    border: 1px dashed var(--line);
+    color: var(--ink-dim);
+    border-radius: 8px;
+    padding: 6px;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: border-color 120ms ease, color 120ms ease;
+  }
+
+  .reset-btn:hover {
+    border-color: #e05263;
+    color: #e05263;
+  }
+
+  .link-group {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .footer-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--ink-dim);
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    transition: border-color 120ms ease, color 120ms ease;
+  }
+
+  .footer-link:hover {
+    border-color: var(--accent);
+    color: var(--ink);
+  }
+
+  .footer-link .icon {
+    font-size: 13px;
+    font-weight: 700;
+    width: 18px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="cat-layer" id="catLayer"></div>
+
+<div class="stage">
+  <header>
+    <div class="title-block">
+      <p class="eyebrow">TETRIS</p>
+      <h1>降り積む夜</h1>
+    </div>
+    <div class="scores">
+      <div class="score-box">
+        <span class="new-badge" id="newBadge">NEW!!</span>
+        <div class="label">SCORE</div>
+        <div class="value" id="score">0</div>
+      </div>
+      <div class="score-box">
+        <div class="label">BEST</div>
+        <div class="value" id="best">0</div>
+      </div>
+    </div>
+  </header>
+
+  <button class="bg-toggle" id="bgToggle">🐾 背景: <span id="bgToggleLabel">なし</span></button>
+
+  <div class="board-wrap">
+    <canvas id="tetris" width="240" height="400"></canvas>
+    <div class="overlay" id="overlay">
+      <div class="msg" id="overlayMsg">Game Over</div>
+      <div class="sub" id="overlaySub"></div>
+      <button id="overlayBtn">もう一度</button>
+    </div>
+  </div>
+
+  <div class="touch-controls">
+    <button class="touch-btn" id="btnLeft">←</button>
+    <button class="touch-btn" id="btnRotate">↻</button>
+    <button class="touch-btn" id="btnRight">→</button>
+    <button class="touch-btn" id="btnDown">↓</button>
+  </div>
+
+  <div class="controls-row">
+    <p class="hint">矢印キーで移動・下キーで落下<br>Q / W またはボタンで回転</p>
+    <button class="new-game" id="newGameBtn">新しく始める</button>
+  </div>
+
+  <button class="rank-link" id="rankBtn">歴代ベスト10を見る →</button>
+</div>
+
+<div class="rank-view" id="rankView">
+  <div class="rank-panel">
+    <header class="rank-header">
+      <p class="eyebrow">RECORDS</p>
+      <h2>歴代ベスト10</h2>
+    </header>
+    <ol class="rank-list" id="rankList"></ol>
+    <button class="back-btn" id="backBtn">← ゲームに戻る</button>
+    <button class="reset-btn" id="resetBtn">記録をリセット</button>
+  </div>
+  <div class="link-group">
+    <a class="footer-link" href="https://x.com/LevaCraft" target="_blank" rel="noopener noreferrer">
+      <span class="icon">𝕏</span> @LevaCraft
+    </a>
+    <a class="footer-link" href="https://youtube.com/@levacraft-b9v?si=z2kzSiArr_hE2uIf" target="_blank" rel="noopener noreferrer">
+      <span class="icon">▶</span> YouTube
+    </a>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ============ original Tetris game logic (kept as-is) ============
+  const canvas = document.getElementById('tetris');
+  const context = canvas.getContext('2d');
+  context.scale(20, 20);
+
+  const COLORS = {
+    1: '#5cc8ff', // I
+    2: '#ffb15c', // L
+    3: '#7c8cff', // J
+    4: '#ffe15c', // O
+    5: '#ff6b81', // Z
+    6: '#7be08a', // S
+    7: '#b39dff'  // T
+  };
+
+  function createPiece(type) {
+    if (type === 'I') return [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]];
+    if (type === 'L') return [[0,2,0],[0,2,0],[0,2,2]];
+    if (type === 'J') return [[0,3,0],[0,3,0],[3,3,0]];
+    if (type === 'O') return [[4,4],[4,4]];
+    if (type === 'Z') return [[5,5,0],[0,5,5],[0,0,0]];
+    if (type === 'S') return [[0,6,6],[6,6,0],[0,0,0]];
+    if (type === 'T') return [[0,7,0],[7,7,7],[0,0,0]];
+  }
+
+  function createMatrix(w, h) {
+    const matrix = [];
+    while (h--) matrix.push(new Array(w).fill(0));
+    return matrix;
+  }
+
+  function draw() {
+    context.fillStyle = '#0a0e1e';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    drawMatrix(arena, {x: 0, y: 0});
+    drawMatrix(player.matrix, player.pos);
+  }
+
+  function drawMatrix(matrix, offset) {
+    matrix.forEach((row, y) => {
+      row.forEach((value, x) => {
+        if (value !== 0) {
+          context.fillStyle = COLORS[value] || '#ffffff';
+          context.fillRect(x + offset.x, y + offset.y, 0.94, 0.94);
+        }
+      });
+    });
+  }
+
+  function collide(arena, player) {
+    const [m, o] = [player.matrix, player.pos];
+    for (let y = 0; y < m.length; ++y) {
+      for (let x = 0; x < m[y].length; ++x) {
+        if (m[y][x] !== 0 && (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) return true;
+      }
+    }
+    return false;
+  }
+
+  function arenaSweep() {
+    outer: for (let y = arena.length - 1; y > 0; --y) {
+      for (let x = 0; x < arena[y].length; ++x) {
+        if (arena[y][x] === 0) continue outer;
+      }
+      const row = arena.splice(y, 1)[0].fill(0);
+      arena.unshift(row);
+      ++y;
+      player.score += 10;
+    }
+    updateScore();
+  }
+
+  function merge(arena, player) {
+    player.matrix.forEach((row, y) => {
+      row.forEach((value, x) => {
+        if (value !== 0) arena[y + player.pos.y][x + player.pos.x] = value;
+      });
+    });
+  }
+
+  function rotate(matrix, dir) {
+    for (let y = 0; y < matrix.length; ++y) {
+      for (let x = 0; x < y; ++x) {
+        [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+      }
+    }
+    if (dir > 0) matrix.forEach(row => row.reverse());
+    else matrix.reverse();
+  }
+
+  function playerDrop() {
+    if (gameOver) return;
+    player.pos.y++;
+    if (collide(arena, player)) {
+      player.pos.y--;
+      merge(arena, player);
+      playerReset();
+      arenaSweep();
+    }
+    dropCounter = 0;
+  }
+
+  function playerReset() {
+    const pieces = 'ILJOTSZ';
+    player.matrix = createPiece(pieces[pieces.length * Math.random() | 0]);
+    player.pos.y = 0;
+    player.pos.x = 3;
+    if (collide(arena, player)) {
+      endGame();
+    }
+  }
+
+  const arena = createMatrix(12, 20);
+  const player = { pos: {x: 0, y: 0}, matrix: null, score: 0 };
+
+  let dropCounter = 0;
+  let dropInterval = 1000;
+  let lastTime = 0;
+  let gameOver = false;
+
+  function update(time = 0) {
+    const deltaTime = time - lastTime;
+    lastTime = time;
+    if (!gameOver) {
+      dropCounter += deltaTime;
+      if (dropCounter > dropInterval) playerDrop();
+      draw();
+    }
+    requestAnimationFrame(update);
+  }
+
+  function moveLeft(){
+    if (gameOver) return;
+    player.pos.x--;
+    if (collide(arena, player)) player.pos.x++;
+  }
+  function moveRight(){
+    if (gameOver) return;
+    player.pos.x++;
+    if (collide(arena, player)) player.pos.x--;
+  }
+  function doRotate(dir){
+    if (gameOver) return;
+    rotate(player.matrix, dir);
+  }
+
+  document.addEventListener('keydown', event => {
+    if (gameOver) return;
+    if (event.keyCode === 37) moveLeft();
+    else if (event.keyCode === 39) moveRight();
+    else if (event.keyCode === 40) playerDrop();
+    else if (event.keyCode === 81) doRotate(-1);
+    else if (event.keyCode === 87) doRotate(1);
+  });
+
+  // ============ format layer: score/best/ranking/background/links ============
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const newBadge = document.getElementById('newBadge');
+  const overlay = document.getElementById('overlay');
+  const overlayMsg = document.getElementById('overlayMsg');
+  const overlaySub = document.getElementById('overlaySub');
+  const overlayBtn = document.getElementById('overlayBtn');
+  const newGameBtn = document.getElementById('newGameBtn');
+  const rankBtn = document.getElementById('rankBtn');
+  const backBtn = document.getElementById('backBtn');
+  const rankView = document.getElementById('rankView');
+  const rankList = document.getElementById('rankList');
+  const resetBtn = document.getElementById('resetBtn');
+  const bgToggle = document.getElementById('bgToggle');
+  const bgToggleLabel = document.getElementById('bgToggleLabel');
+
+  const STORAGE_KEY = 'tetris_best';
+  const HISTORY_KEY = 'tetris_history';
+
+  let bestScore = 0;
+
+  function loadBest(){
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? parseInt(saved, 10) || 0 : 0;
+    } catch (e) { return 0; }
+  }
+
+  function saveBest(value){
+    try { localStorage.setItem(STORAGE_KEY, String(value)); } catch (e) {}
+  }
+
+  function updateScore(){
+    scoreEl.textContent = player.score;
+    if(player.score > bestScore){
+      bestScore = player.score;
+      saveBest(bestScore);
+      newBadge.classList.add('show');
+    }
+    bestEl.textContent = bestScore;
+  }
+
+  function loadHistory(){
+    try {
+      const raw = localStorage.getItem(HISTORY_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+
+  function saveHistoryEntry(finalScore){
+    try {
+      const list = loadHistory();
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const stamp = `${now.getFullYear()}/${pad(now.getMonth()+1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      list.push({ score: finalScore, date: stamp });
+      list.sort((a,b) => b.score - a.score);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 10)));
+    } catch (e) {}
+  }
+
+  function renderRanking(){
+    const list = loadHistory();
+    rankList.innerHTML = '';
+    if(list.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'rank-empty';
+      empty.textContent = 'まだ記録がありません。ゲームオーバーになると記録されます。';
+      rankList.appendChild(empty);
+      return;
+    }
+    list.forEach((entry, i) => {
+      const li = document.createElement('li');
+      if(i === 0) li.classList.add('top1');
+      li.innerHTML = `
+        <span class="rank-num">${i+1}</span>
+        <span class="rank-score">${entry.score}</span>
+        <span class="rank-date">${entry.date}</span>
+        <button class="rank-share" title="Xでシェア" data-score="${entry.score}" data-rank="${i+1}">𝕏</button>
+      `;
+      rankList.appendChild(li);
+    });
+  }
+
+  function shareToX(score, rank){
+    const text = `テトリス「降り積む夜」で ${score}点を記録しました🌙✨(歴代${rank}位)\n#LevaCraft`;
+    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  function endGame(){
+    gameOver = true;
+    saveHistoryEntry(player.score);
+    overlayMsg.textContent = 'ゲームオーバー';
+    overlaySub.textContent = `スコア: ${player.score}`;
+    overlay.classList.add('show');
+  }
+
+  function resetGame(){
+    arena.forEach(row => row.fill(0));
+    player.score = 0;
+    gameOver = false;
+    newBadge.classList.remove('show');
+    bestScore = loadBest();
+    updateScore();
+    overlay.classList.remove('show');
+    playerReset();
+  }
+
+  overlayBtn.addEventListener('click', resetGame);
+  newGameBtn.addEventListener('click', resetGame);
+
+  document.getElementById('btnLeft').addEventListener('click', moveLeft);
+  document.getElementById('btnRight').addEventListener('click', moveRight);
+  document.getElementById('btnDown').addEventListener('click', playerDrop);
+  document.getElementById('btnRotate').addEventListener('click', () => doRotate(1));
+
+  rankBtn.addEventListener('click', () => {
+    renderRanking();
+    rankView.classList.add('show');
+  });
+
+  backBtn.addEventListener('click', () => {
+    rankView.classList.remove('show');
+  });
+
+  rankList.addEventListener('click', (e) => {
+    const btn = e.target.closest('.rank-share');
+    if(!btn) return;
+    shareToX(btn.dataset.score, btn.dataset.rank);
+  });
+
+  resetBtn.addEventListener('click', () => {
+    const ok = confirm('歴代ベスト10とベストスコアを消去します。よろしいですか？');
+    if(!ok) return;
+    try {
+      localStorage.removeItem(HISTORY_KEY);
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {}
+    bestScore = 0;
+    bestEl.textContent = 0;
+    newBadge.classList.remove('show');
+    renderRanking();
+  });
+
+  // ---- switchable cat background (shared visual language with other LevaCraft mini games) ----
+  const CAT_THEME_KEY = 'tetris_catTheme';
+
+  function catSVG(color){
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'>
+      <g fill='${color}'>
+        <polygon points='14,16 20,4 26,16'/>
+        <polygon points='34,16 40,4 46,16'/>
+        <circle cx='30' cy='28' r='14'/>
+      </g>
+      <g stroke='${color}' stroke-width='1.4' fill='none' opacity='0.9'>
+        <line x1='10' y1='30' x2='0' y2='27'/>
+        <line x1='10' y1='34' x2='0' y2='35'/>
+        <line x1='50' y1='30' x2='60' y2='27'/>
+        <line x1='50' y1='34' x2='60' y2='35'/>
+      </g>
+    </svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  }
+
+  const CAT_THEMES = [
+    { label: 'なし', bg: 'none', opacity: 0 },
+    { label: '🐈 三毛猫', bg: catSVG('#ffb15c'), opacity: 0.16 },
+    { label: '🐈\u200d⬛ 黒猫', bg: catSVG('#b39dff'), opacity: 0.14 },
+    { label: '😺 白猫', bg: catSVG('#ffdcec'), opacity: 0.12 }
+  ];
+
+  function loadCatTheme(){
+    try {
+      const saved = parseInt(localStorage.getItem(CAT_THEME_KEY), 10);
+      return Number.isInteger(saved) && CAT_THEMES[saved] ? saved : 0;
+    } catch (e) { return 0; }
+  }
+
+  function saveCatTheme(idx){
+    try { localStorage.setItem(CAT_THEME_KEY, String(idx)); } catch (e) {}
+  }
+
+  function applyCatTheme(idx){
+    const theme = CAT_THEMES[idx];
+    document.documentElement.style.setProperty('--cat-bg', theme.bg);
+    document.documentElement.style.setProperty('--cat-opacity', theme.opacity);
+    bgToggleLabel.textContent = theme.label;
+  }
+
+  let catThemeIndex = loadCatTheme();
+  applyCatTheme(catThemeIndex);
+
+  bgToggle.addEventListener('click', () => {
+    catThemeIndex = (catThemeIndex + 1) % CAT_THEMES.length;
+    applyCatTheme(catThemeIndex);
+    saveCatTheme(catThemeIndex);
+  });
+
+  // ---- boot ----
+  bestScore = loadBest();
+  updateScore();
+  playerReset();
+  update();
+})();
+</script>
+
+</body>
+</html>
