@@ -159,6 +159,33 @@
     color: var(--ink);
   }
 
+  .next-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 14px;
+    margin-bottom: 14px;
+  }
+
+  .next-label {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+  }
+
+  #nextCanvas {
+    display: block;
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    background: #0a0e1e;
+  }
+
   .board-wrap {
     position: relative;
     background: var(--bg-panel);
@@ -176,6 +203,7 @@
     height: auto;
     border-radius: 8px;
     background: #0a0e1e;
+    touch-action: none;
   }
 
   .overlay {
@@ -219,8 +247,8 @@
 
   .touch-controls {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
+    grid-template-columns: 1fr;
+    gap: 6px;
     margin-top: 14px;
   }
 
@@ -519,6 +547,11 @@
 
   <button class="bg-toggle" id="bgToggle">🐾 背景: <span id="bgToggleLabel">なし</span></button>
 
+  <div class="next-bar">
+    <span class="next-label">NEXT</span>
+    <canvas id="nextCanvas" width="70" height="70"></canvas>
+  </div>
+
   <div class="board-wrap">
     <canvas id="tetris" width="240" height="400"></canvas>
     <div class="overlay" id="overlay">
@@ -529,14 +562,11 @@
   </div>
 
   <div class="touch-controls">
-    <button class="touch-btn" id="btnLeft">←</button>
-    <button class="touch-btn" id="btnRotate">↻</button>
-    <button class="touch-btn" id="btnRight">→</button>
-    <button class="touch-btn" id="btnDown">↓</button>
+    <button class="touch-btn" id="btnPause">⏸ 一時停止</button>
   </div>
 
   <div class="controls-row">
-    <p class="hint">矢印キーで移動・下キーで落下<br>Q / W またはボタンで回転</p>
+    <p class="hint">PC: 矢印キーで移動・Q/Wで回転<br>スマホ: タップで回転・フリックしたまま指を止めると移動/落下し続けます</p>
     <button class="new-game" id="newGameBtn">新しく始める</button>
   </div>
 
@@ -570,6 +600,10 @@
   const context = canvas.getContext('2d');
   context.scale(20, 20);
 
+  const nextCanvas = document.getElementById('nextCanvas');
+  const nextCtx = nextCanvas.getContext('2d');
+  const NEXT_BLOCK = 15;
+
   const COLORS = {
     1: '#5cc8ff', // I
     2: '#ffb15c', // L
@@ -590,6 +624,23 @@
     if (type === 'T') return [[0,7,0],[7,7,7],[0,0,0]];
   }
 
+  function drawNextPreview(){
+    nextCtx.fillStyle = '#0a0e1e';
+    nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+    const shape = createPiece(nextType);
+    const rows = shape.length, cols = shape[0].length;
+    const offsetX = (nextCanvas.width - cols * NEXT_BLOCK) / 2;
+    const offsetY = (nextCanvas.height - rows * NEXT_BLOCK) / 2;
+    shape.forEach((row, y) => {
+      row.forEach((value, x) => {
+        if (value !== 0) {
+          nextCtx.fillStyle = COLORS[value] || '#ffffff';
+          nextCtx.fillRect(offsetX + x * NEXT_BLOCK, offsetY + y * NEXT_BLOCK, NEXT_BLOCK - 2, NEXT_BLOCK - 2);
+        }
+      });
+    });
+  }
+
   function createMatrix(w, h) {
     const matrix = [];
     while (h--) matrix.push(new Array(w).fill(0));
@@ -599,15 +650,46 @@
   function draw() {
     context.fillStyle = '#0a0e1e';
     context.fillRect(0, 0, canvas.width, canvas.height);
-    drawMatrix(arena, {x: 0, y: 0});
-    drawMatrix(player.matrix, player.pos);
+    drawMatrix(arena, {x: 0, y: 0}, clearing ? clearingRows : null, flashOn);
+    if (player.matrix) {
+      drawGhost();
+      drawMatrix(player.matrix, player.pos);
+    }
   }
 
-  function drawMatrix(matrix, offset) {
-    matrix.forEach((row, y) => {
+  function getGhostPos(){
+    const ghostPos = { x: player.pos.x, y: player.pos.y };
+    const testPlayer = { matrix: player.matrix, pos: ghostPos };
+    while (!collide(arena, testPlayer)) {
+      ghostPos.y++;
+    }
+    ghostPos.y--;
+    return ghostPos;
+  }
+
+  function drawGhost(){
+    const ghostPos = getGhostPos();
+    if (ghostPos.y === player.pos.y) return; // already resting, no need to preview
+    player.matrix.forEach((row, y) => {
       row.forEach((value, x) => {
         if (value !== 0) {
-          context.fillStyle = COLORS[value] || '#ffffff';
+          context.strokeStyle = COLORS[value] || '#ffffff';
+          context.globalAlpha = 0.55;
+          context.lineWidth = 0.08;
+          context.strokeRect(x + ghostPos.x + 0.05, y + ghostPos.y + 0.05, 0.9, 0.9);
+          context.globalAlpha = 1;
+        }
+      });
+    });
+  }
+
+  function drawMatrix(matrix, offset, flashRows, flashOn) {
+    matrix.forEach((row, y) => {
+      const isFlashRow = flashRows && flashRows.includes(y);
+      if (isFlashRow && !flashOn) return; // blink "off" phase — leave this row blank
+      row.forEach((value, x) => {
+        if (value !== 0) {
+          context.fillStyle = isFlashRow ? '#ffffff' : (COLORS[value] || '#ffffff');
           context.fillRect(x + offset.x, y + offset.y, 0.94, 0.94);
         }
       });
@@ -624,17 +706,51 @@
     return false;
   }
 
-  function arenaSweep() {
-    outer: for (let y = arena.length - 1; y > 0; --y) {
+  function findFullRows() {
+    const rows = [];
+    for (let y = arena.length - 1; y >= 0; --y) {
+      let full = true;
       for (let x = 0; x < arena[y].length; ++x) {
-        if (arena[y][x] === 0) continue outer;
+        if (arena[y][x] === 0) { full = false; break; }
       }
-      const row = arena.splice(y, 1)[0].fill(0);
-      arena.unshift(row);
-      ++y;
-      player.score += 10;
+      if (full) rows.push(y);
     }
+    return rows;
+  }
+
+  const FLASH_COUNT = 5;
+  const FLASH_INTERVAL = 90;
+
+  function startLineClear(rows) {
+    clearing = true;
+    clearingRows = rows;
+    let toggles = 0;
+    flashOn = false; // first tick flips to true, so the row visibly blinks
+    clearInterval(flashTimer);
+    flashTimer = setInterval(() => {
+      flashOn = !flashOn;
+      draw();
+      if (!flashOn) {
+        toggles++;
+        if (toggles >= FLASH_COUNT) {
+          clearInterval(flashTimer);
+          finishLineClear(rows);
+        }
+      }
+    }, FLASH_INTERVAL);
+  }
+
+  function finishLineClear(rows) {
+    const sorted = [...rows].sort((a, b) => b - a); // remove bottom-most first
+    sorted.forEach(y => {
+      arena.splice(y, 1);
+      arena.unshift(new Array(arena[0].length).fill(0));
+    });
+    player.score += rows.length * 10;
     updateScore();
+    clearing = false;
+    clearingRows = [];
+    playerReset();
   }
 
   function merge(arena, player) {
@@ -656,20 +772,46 @@
   }
 
   function playerDrop() {
-    if (gameOver) return;
+    if (gameOver || paused || clearing) return;
     player.pos.y++;
     if (collide(arena, player)) {
       player.pos.y--;
       merge(arena, player);
-      playerReset();
-      arenaSweep();
+      const fullRows = findFullRows();
+      if (fullRows.length > 0) {
+        player.matrix = null; // piece is already locked into the arena — nothing left to draw as "current"
+        startLineClear(fullRows);
+      } else {
+        playerReset();
+      }
     }
     dropCounter = 0;
   }
 
-  function playerReset() {
+  function hardDrop() {
+    if (gameOver || paused || clearing) return;
+    player.pos.y = getGhostPos().y;
+    merge(arena, player);
+    const fullRows = findFullRows();
+    if (fullRows.length > 0) {
+      player.matrix = null;
+      startLineClear(fullRows);
+    } else {
+      playerReset();
+    }
+    dropCounter = 0;
+  }
+
+  function randomPieceType(){
     const pieces = 'ILJOTSZ';
-    player.matrix = createPiece(pieces[pieces.length * Math.random() | 0]);
+    return pieces[pieces.length * Math.random() | 0];
+  }
+
+  function playerReset() {
+    const type = nextType || randomPieceType();
+    player.matrix = createPiece(type);
+    nextType = randomPieceType();
+    drawNextPreview();
     player.pos.y = 0;
     player.pos.x = 3;
     if (collide(arena, player)) {
@@ -684,11 +826,17 @@
   let dropInterval = 1000;
   let lastTime = 0;
   let gameOver = false;
+  let paused = false;
+  let clearing = false;
+  let clearingRows = [];
+  let flashOn = false;
+  let flashTimer = null;
+  let nextType = null;
 
   function update(time = 0) {
     const deltaTime = time - lastTime;
     lastTime = time;
-    if (!gameOver) {
+    if (!gameOver && !paused && !clearing) {
       dropCounter += deltaTime;
       if (dropCounter > dropInterval) playerDrop();
       draw();
@@ -697,28 +845,110 @@
   }
 
   function moveLeft(){
-    if (gameOver) return;
+    if (gameOver || paused || clearing) return;
     player.pos.x--;
     if (collide(arena, player)) player.pos.x++;
   }
   function moveRight(){
-    if (gameOver) return;
+    if (gameOver || paused || clearing) return;
     player.pos.x++;
     if (collide(arena, player)) player.pos.x--;
   }
   function doRotate(dir){
-    if (gameOver) return;
+    if (gameOver || paused || clearing) return;
     rotate(player.matrix, dir);
   }
 
-  document.addEventListener('keydown', event => {
+  function togglePause(){
     if (gameOver) return;
+    paused = !paused;
+    if (paused) {
+      overlayMsg.textContent = '一時停止中';
+      overlaySub.textContent = `スコア: ${player.score}`;
+      overlayBtn.textContent = '再開する';
+      overlay.classList.add('show');
+      pauseBtn.textContent = '▶ 再開する';
+    } else {
+      overlay.classList.remove('show');
+      overlayBtn.textContent = 'もう一度';
+      lastTime = performance.now(); // avoid a big deltaTime jump after resuming
+      pauseBtn.textContent = '⏸ 一時停止';
+    }
+  }
+
+  document.addEventListener('keydown', event => {
+    if (event.keyCode === 80) { // P key toggles pause, works even mid-pause
+      togglePause();
+      return;
+    }
+    if (gameOver || paused) return;
     if (event.keyCode === 37) moveLeft();
     else if (event.keyCode === 39) moveRight();
     else if (event.keyCode === 40) playerDrop();
     else if (event.keyCode === 81) doRotate(-1);
     else if (event.keyCode === 87) doRotate(1);
   });
+
+  // ---- mobile gesture controls ----
+  // tap = rotate. flick a direction and keep your finger down = keeps moving that way.
+  let touchStartX = 0, touchStartY = 0;
+  let heldDirection = null;
+  let repeatTimer = null;
+  const SWIPE_THRESHOLD = 24;
+  const REPEAT_INTERVAL = 130;
+
+  function runDirectionAction(direction){
+    if (gameOver || paused) return;
+    if (direction === 'left') moveLeft();
+    else if (direction === 'right') moveRight();
+    else if (direction === 'down') playerDrop();
+  }
+
+  function startHolding(direction){
+    heldDirection = direction;
+    runDirectionAction(direction); // fire immediately on the initial flick
+    clearInterval(repeatTimer);
+    repeatTimer = setInterval(() => runDirectionAction(direction), REPEAT_INTERVAL);
+  }
+
+  function stopHolding(){
+    clearInterval(repeatTimer);
+    repeatTimer = null;
+    heldDirection = null;
+  }
+
+  canvas.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+    stopHolding();
+  }, {passive: true});
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault(); // stop the page from scrolling while swiping on the board
+    if (gameOver || paused || heldDirection) return; // already locked into a direction for this touch
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    if (absDx < SWIPE_THRESHOLD && absDy < SWIPE_THRESHOLD) return; // not enough movement yet
+
+    if (absDy > absDx) {
+      if (dy > 0) startHolding('down');
+      // swipe up: no action
+    } else {
+      startHolding(dx > 0 ? 'right' : 'left');
+    }
+  }, {passive: false});
+
+  canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    const wasHolding = heldDirection !== null;
+    stopHolding();
+    if (gameOver || paused || wasHolding) return; // a flick already happened, don't also rotate
+    doRotate(1); // released without ever crossing the threshold = tap = rotate
+  }, {passive: false});
 
   // ============ format layer: score/best/ranking/background/links ============
   const scoreEl = document.getElementById('score');
@@ -729,6 +959,7 @@
   const overlaySub = document.getElementById('overlaySub');
   const overlayBtn = document.getElementById('overlayBtn');
   const newGameBtn = document.getElementById('newGameBtn');
+  const pauseBtn = document.getElementById('btnPause');
   const rankBtn = document.getElementById('rankBtn');
   const backBtn = document.getElementById('backBtn');
   const rankView = document.getElementById('rankView');
@@ -823,6 +1054,13 @@
     arena.forEach(row => row.fill(0));
     player.score = 0;
     gameOver = false;
+    paused = false;
+    clearing = false;
+    clearingRows = [];
+    clearInterval(flashTimer);
+    nextType = randomPieceType();
+    pauseBtn.textContent = '⏸ 一時停止';
+    overlayBtn.textContent = 'もう一度';
     newBadge.classList.remove('show');
     bestScore = loadBest();
     updateScore();
@@ -830,13 +1068,14 @@
     playerReset();
   }
 
-  overlayBtn.addEventListener('click', resetGame);
+  overlayBtn.addEventListener('click', () => {
+    if (paused) { togglePause(); return; }
+    resetGame();
+  });
   newGameBtn.addEventListener('click', resetGame);
+  pauseBtn.addEventListener('click', togglePause);
 
-  document.getElementById('btnLeft').addEventListener('click', moveLeft);
-  document.getElementById('btnRight').addEventListener('click', moveRight);
-  document.getElementById('btnDown').addEventListener('click', playerDrop);
-  document.getElementById('btnRotate').addEventListener('click', () => doRotate(1));
+
 
   rankBtn.addEventListener('click', () => {
     renderRanking();
