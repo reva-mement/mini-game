@@ -108,14 +108,15 @@
     color: transparent;
   }
 
-  .score-box {
+.score-box {
     position: relative;
     background: var(--bg-panel);
     border: 1px solid var(--line);
     border-radius: 10px;
     padding: 8px 10px;
     text-align: center;
-    min-width: 64px;
+    /* 修正前: min-width: 64px; */
+    min-width: 80px; /* 5桁表示のために幅を少し広げます */
   }
 
   .new-badge {
@@ -158,8 +159,9 @@
     text-transform: uppercase;
   }
 
-  .score-box .value {
-    font-size: 17px;
+.score-box .value {
+    /* 修正前: font-size: 17px; */
+    font-size: 14px; /* 字を小さくして、5桁表示でも収まるようにします */
     font-weight: 700;
     letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
@@ -556,7 +558,7 @@
     </div>
   </header>
 
-  <button class="bg-toggle" id="bgToggle">🐾 背景: <span id="bgToggleLabel">なし</span></button>
+<button class="bg-toggle" id="bgToggle">🐾 背景: <span id="bgToggleLabel">なし</span></button>
 
   <div class="board-wrap">
     <div class="board" id="board">
@@ -568,12 +570,13 @@
     </div>
   </div>
 
+  <!-- 修正箇所: ボタンの順序を入れ替え -->
+  <button class="rank-link" id="rankBtn">歴代ベスト10を見る →</button>
+
   <div class="controls-row">
     <p class="hint">矢印キー / スワイプで<br>タイルを動かしてね</p>
     <button class="new-game" id="newGameBtn">新しく始める</button>
   </div>
-
-  <button class="rank-link" id="rankBtn">歴代ベスト10を見る →</button>
 </div>
 
 <div class="rank-view" id="rankView">
