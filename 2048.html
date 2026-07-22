@@ -228,7 +228,7 @@
 
   .controls-row {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     margin-top: 18px;
   }
@@ -237,14 +237,18 @@
     font-size: 12px;
     color: var(--ink-dim);
     line-height: 1.5;
+    text-align: center;
   }
 
   .new-game {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
     background: var(--accent);
     color: #241a05;
     border: none;
-    border-radius: 8px;
-    padding: 10px 16px;
+    border-radius: 10px;
+    padding: 12px;
     font-weight: 700;
     font-size: 13px;
     cursor: pointer;
@@ -570,10 +574,10 @@
 
   <div class="controls-row">
     <p class="hint">矢印キー / スワイプで<br>タイルを動かしてね</p>
-    <button class="new-game" id="newGameBtn">新しく始める</button>
   </div>
 
   <button class="rank-link" id="rankBtn">歴代ベスト10を見る →</button>
+  <button class="new-game" id="newGameBtn">新しく始める</button>
 </div>
 
 <div class="rank-view" id="rankView">
