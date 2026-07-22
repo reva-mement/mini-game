@@ -798,9 +798,31 @@
     dropCounter = 0;
   }
 
+  let lastPieceType = null;
+  let pieceStreak = 0;
+
   function randomPieceType(){
-    const pieces = 'ILJOTSZ';
-    return pieces[pieces.length * Math.random() | 0];
+    const all = 'ILJOTSZ'.split('');
+    const others = lastPieceType ? all.filter(p => p !== lastPieceType) : all;
+    let chosen;
+
+    if (lastPieceType && pieceStreak >= 3) {
+      // a 4th consecutive repeat is never allowed
+      chosen = others[Math.floor(Math.random() * others.length)];
+    } else if (lastPieceType && pieceStreak === 2) {
+      // a 3rd consecutive repeat happens exactly 1% of the time
+      chosen = (Math.random() < 0.01) ? lastPieceType : others[Math.floor(Math.random() * others.length)];
+    } else {
+      chosen = all[Math.floor(Math.random() * all.length)];
+    }
+
+    if (chosen === lastPieceType) {
+      pieceStreak++;
+    } else {
+      lastPieceType = chosen;
+      pieceStreak = 1;
+    }
+    return chosen;
   }
 
   function playerReset() {
@@ -1096,6 +1118,8 @@
     clearingRows = [];
     lockTimer = 0;
     clearInterval(flashTimer);
+    lastPieceType = null;
+    pieceStreak = 0;
     nextType = randomPieceType();
     level = 1;
     totalLinesCleared = 0;
