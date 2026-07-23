@@ -479,6 +479,27 @@
     margin-bottom: 8px;
   }
 
+  .hub-link {
+    display: block;
+    width: 100%;
+    text-align: center;
+    text-decoration: none;
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+    border-radius: 8px;
+    padding: 7px;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    box-sizing: border-box;
+    transition: border-color 120ms ease, color 120ms ease;
+  }
+
+  .hub-link:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
   .link-group {
     position: relative;
     width: 100%;
@@ -588,6 +609,7 @@
     </header>
     <ol class="rank-list" id="rankList"></ol>
     <button class="back-btn" id="backBtn">← ゲームに戻る</button>
+    <a class="hub-link" href="index.html">🎮 ゲーム一覧に戻る</a>
     <button class="reset-btn" id="resetBtn">記録をリセット</button>
   </div>
   <div class="link-group">
